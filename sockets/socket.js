@@ -146,7 +146,6 @@ module.exports = function (io) {
     // ****************************** delete message socket *********************************************
     socket.on("deleteMessage", async (data) => {
       try {
-        // Fetch the message data before deleting it
         let getMessageData = await Models.message.findOne({
           where: { id: data.id }
         });
@@ -154,11 +153,8 @@ module.exports = function (io) {
         if (!getMessageData) {
           throw new Error("Message not found");
         }
-
-        // Perform the delete operation
         await Models.message.destroy({ where: { id: data.id } });
 
-        // Continue with the rest of the operations using the fetched data
         let getSocketKey = await Models.usersocket.findOne({
           where: {
             userId: getMessageData.receiverId
