@@ -69,6 +69,7 @@ module.exports = function (io) {
           senderId: chatData.senderId,
           receiverId: chatData.receiverId,
         })
+
         if (checkUserMessages) {
           await Models.chatconstant.update({ lastMessageId: insertChat.id }, { where: { id: checkUserMessages.id } })
         } else {
@@ -207,6 +208,21 @@ module.exports = function (io) {
         socket.emit("clearChat", { error_message: "Error clearing chat", error: error.message });
       }
     });
+
+    socket.on("readStatusUpdate", async (chatData) => {
+      try {
+        let updateResult = await Models.message.update({
+          readStatus: 1
+        }, {
+          where: {
+            receiverId: chatData.receiverId,
+            senderId: chatData.senderId
+          }
+        })
+      } catch (error) {
+        throw error
+      }
+    })
 
 
   })
