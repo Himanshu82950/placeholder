@@ -1,5 +1,6 @@
 const Models = require("../models")
 const { Op, where } = require('sequelize');
+const message = require("../models/message");
 
 Models.message.belongsTo(Models.users, {
   foreignKey: "senderId",
@@ -56,7 +57,6 @@ module.exports = function (io) {
         throw error
       }
     })
-
     // *************************send message socket********************************************
     socket.on("sendMessage", async (chatData) => {
       try {
@@ -87,7 +87,6 @@ module.exports = function (io) {
       }
 
     })
-
     // ******************************get message socket ***********************************
     socket.on("getMessages", async (chatData) => {
       try {
@@ -142,7 +141,6 @@ module.exports = function (io) {
         throw error;
       }
     });
-
     // ****************************** delete message socket *********************************************
     socket.on("deleteMessage", async (data) => {
       try {
@@ -173,7 +171,6 @@ module.exports = function (io) {
         throw error;
       }
     });
-
     // ********************************** clear chat socket ************************************************
     socket.on("clearChat", async (data) => {
       try {
@@ -204,21 +201,65 @@ module.exports = function (io) {
         socket.emit("clearChat", { error_message: "Error clearing chat", error: error.message });
       }
     });
-
+    // **********************************read status update socket **************************************************
     socket.on("readStatusUpdate", async (chatData) => {
       try {
-        let updateResult = await Models.message.update({
-          readStatus: 1
-        }, {
+        let checkMessage = await Models.chatconstant.findOne({
           where: {
-            receiverId: chatData.receiverId,
-            senderId: chatData.senderId
+            [Op.or]: [
+              {
+                senderId: chatData.senderId,
+                receiverId: chatData.receiverId,
+              },
+              {
+                senderId: chatData.receiverId,
+                receiverId: chatData.senderId,
+              },
+            ],
+          },
+        });
+
+        let updatedData = await Models.message.update(
+          {
+            readStatus: chatData.readStatus,
+          },
+          {
+            where: {
+              receiverId: chatData.receiverId,
+            },
           }
+        );
+
+        let getAllOldMessage = await getMessage(checkMessage);
+        socket.emit("readStatusUpdate", getAllOldMessage);
+      } catch (error) {
+        console.log(error, "error>>>>>>>>>>>>>>>>>");
+        throw error;
+      }
+    });
+    // ************************************mark as unread socket*********************************************
+    socket.on("markAsUnread", async (messageData) => {
+      try {
+        let unreadData = await Models.message.update({
+          readStatus: 0
+        }, {
+          where: { id: messageData.id }
         })
+
+        let updatedData = await Models.message.findOne({
+          where: { id: messageData.id }
+        })
+
+        let message = {
+          msg: "message marked as unread",
+          data: updatedData,
+        };
+        socket.emit("markAsUnread", message);
       } catch (error) {
         throw error
       }
     })
+
 
 
   })
@@ -267,29 +308,6 @@ async function getChatConstantId(senderId, receiverId) {
 
   return chatConstantId;
 }
-
-
-
-async function getBothUserMessage(data) {
-  try {
-    let getAllOldMessage = await Models.message.findAll({
-      include: [
-        {
-          model: Models.users,
-          as: "senderDetail",
-        },
-        {
-          model: Models.users,
-          as: "receiverDetail",
-        },
-      ],
-    });
-    return getAllOldMessage;
-  } catch (error) {
-    console.log("errorrrrrrrrrrrrr", error);
-  }
-}
-
 
 async function getMessage(data) {
   try {
