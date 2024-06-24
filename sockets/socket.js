@@ -91,26 +91,34 @@ module.exports = function (io) {
     socket.on("getMessages", async (chatData) => {
       try {
         const checkMessages = await Models.message.findAll({
+          include: [
+            {
+              attributes: ["name"],
+              model: Models.users,
+              as: "senderDetail",
+            },
+            {
+              attributes: ["name"],
+              model: Models.users,
+              as: "receiverDetail",
+            },
+          ],
           where: {
             [Op.or]: [
-              {
-                senderId: chatData.senderId,
-                receiverId: chatData.receiverId,
-              },
-              {
-                senderId: chatData.receiverId,
-                receiverId: chatData.senderId,
-              },
+              { deletedBy: { [Op.eq]: null } },
+              { deletedBy: { [Op.ne]: chatData.senderId } },
             ],
-            deletedBy: {
-              [Op.ne]: chatData.senderId,
-            },
+
+            [Op.or]: [
+              { senderId: chatData.senderId, receiverId: chatData.receiverId },
+              { senderId: chatData.receiverId, receiverId: chatData.senderId },
+            ],
+
           },
         });
-
+        console.log(checkMessages, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         socket.emit("getMessages", checkMessages);
       } catch (error) {
-        console.log("Error: ", error);
         throw error;
       }
     });
