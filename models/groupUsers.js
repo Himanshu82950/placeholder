@@ -1,53 +1,35 @@
 const Sequelize = require('sequelize');
-module.exports = function (sequelize, DataTypes) {
-  return sequelize.define('chatconstant', {
+
+module.exports = function(sequelize, DataTypes) {
+  return sequelize.define('groupUsers', {
     id: {
       type: Sequelize.UUID,
       defaultValue: Sequelize.UUIDV4,
       primaryKey: true,
     },
-    senderId: {
-      type: Sequelize.UUID,
-      references: {
-        model: 'users',
-        key: 'id',
-      },
-      onUpdate: 'CASCADE',
-      onDelete: 'CASCADE',
-      allowNull: false,
-    },
-    receiverId: {
-      type: Sequelize.UUID,
-      references: {
-        model: 'users',
-        key: 'id',
-      },
-      onUpdate: 'CASCADE',
-      onDelete: 'CASCADE',
-      allowNull: false,
-    },
     groupId: {
-      type: DataTypes.UUID,
-      onDelete: "CASCADE",
-      onUpdate: "CASCADE",
-      allowNull: true,
-      references: {
-        key: "id",
-        model: "group"
-      },
-    },
-    lastMessageId: {
       type: Sequelize.UUID,
       references: {
-        model: 'message',
+        model: 'group',
         key: 'id',
       },
       onUpdate: 'CASCADE',
       onDelete: 'CASCADE',
-    }
+      allowNull: false,
+    },
+    userId: {
+      type: Sequelize.UUID, 
+      references: {
+        model: 'users',
+        key: 'id',
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'CASCADE',
+      allowNull: false,
+    },
   }, {
     sequelize,
-    tableName: 'chatconstant',
+    tableName: 'groupUsers',
     timestamps: true,
     indexes: [
       {
@@ -56,8 +38,8 @@ module.exports = function (sequelize, DataTypes) {
         using: 'BTREE',
         fields: [
           { name: 'id' },
-        ]
+        ],
       },
-    ]
+    ],
   });
 };

@@ -1,6 +1,6 @@
 const Sequelize = require('sequelize');
 
-module.exports = function(sequelize, DataTypes) {
+module.exports = function (sequelize, DataTypes) {
   return sequelize.define('message', {
     id: {
       type: Sequelize.UUID,
@@ -35,6 +35,16 @@ module.exports = function(sequelize, DataTypes) {
       onUpdate: 'CASCADE',
       onDelete: 'CASCADE',
       allowNull: false,
+    },
+    groupId: {
+      type: DataTypes.UUID,
+      onDelete: "CASCADE",
+      onUpdate: "CASCADE",
+      allowNull: true,
+      references: {
+        key: "id",
+        model: "group"
+      },
     },
     deletedBy: {
       type: DataTypes.UUID,

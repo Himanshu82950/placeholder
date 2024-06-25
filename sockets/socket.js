@@ -1,10 +1,15 @@
 const Models = require("../models")
 const { Op, where } = require('sequelize');
 const message = require("../models/message");
+const { logger } = require("sequelize/lib/utils/logger");
 
 Models.message.belongsTo(Models.users, {
   foreignKey: "senderId",
   as: "senderDetail",
+});
+Models.message.belongsTo(Models.group, {
+  foreignKey: "groupId",
+  as: "groupDetail",
 });
 
 Models.message.belongsTo(Models.users, {
@@ -104,22 +109,21 @@ module.exports = function (io) {
             },
           ],
           where: {
-            [Op.or]: [
-              { deletedBy: { [Op.eq]: null } },
-              { deletedBy: { [Op.ne]: chatData.senderId } },
-            ],
-
+            deletedBy: {
+              [Op.ne]: chatData.senderId,
+            },
             [Op.or]: [
               { senderId: chatData.senderId, receiverId: chatData.receiverId },
               { senderId: chatData.receiverId, receiverId: chatData.senderId },
             ],
-
           },
         });
-        console.log(checkMessages, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+
+        console.log(checkMessages, "Messages retrieved successfully");
         socket.emit("getMessages", checkMessages);
       } catch (error) {
-        throw error;
+        console.error("Error retrieving messages:", error);
+        socket.emit("error", { message: "Failed to retrieve messages", error: error.message });
       }
     });
     // ************************************get message list socket *************************************
@@ -267,6 +271,146 @@ module.exports = function (io) {
         throw error
       }
     })
+
+
+
+    // =============================group chat socket ============================================
+    socket.on("createGroup", async (groupData) => {
+      try {
+        let newGroup = await Models.group.create({
+          groupName: groupData.groupName,
+        });
+
+        for (const userId of groupData.userIds) {
+          await Models.groupUsers.create({
+            groupId: newGroup.id,
+            userId: userId,
+          });
+        }
+
+        let groupUsers = await Models.groupUsers.findAll({
+          where: { groupId: newGroup.id },
+          raw: true,
+        });
+
+        for (const groupUser of groupUsers) {
+          let socketId = await Models.usersocket.findOne({
+            where: { userId: groupUser.userId },
+            raw: true,
+          });
+
+          if (socketId) {
+            io.to(socketId.socketId).emit("groupCreated", {
+              groupId: newGroup.id,
+              groupName: newGroup.groupName,
+              userIds: groupData.userIds,
+            });
+          }
+        }
+
+        socket.emit("createGroup", {
+          groupId: newGroup.id,
+          groupName: newGroup.groupName,
+          userIds: groupData.userIds,
+        });
+      } catch (error) {
+        throw error;
+      }
+    });
+    socket.on("groupSendMessage", async (chatData) => {
+      try {
+        // Check if there are previous messages from this sender in the group
+        let checkGroupMessages = await Models.chatconstant.findOne({
+          where: {
+            groupId: chatData.groupId,
+            senderId: chatData.senderId,
+          },
+        });
+
+        // Get all users in the group
+        let data = await Models.groupUsers.findAll({
+          where: {
+            groupId: chatData.groupId,
+          },
+          raw: true,
+        });
+
+        // Find the receiver ID (any user in the group that is not the sender)
+        let receiverId;
+        for (let i in data) {
+          if (data[i].userId != chatData.senderId) {
+            receiverId = data[i].userId;
+            break;
+          }
+        }
+
+        // Insert the chat message into the database
+        let insertChat = await Models.message.create({
+          message: chatData.message,
+          senderId: chatData.senderId,
+          receiverId: receiverId,
+          groupId: chatData.groupId,
+        });
+
+        // Update or create the chat constant
+        if (checkGroupMessages) {
+          await Models.chatconstant.update(
+            { lastMessageId: insertChat.id },
+            { where: { id: checkGroupMessages.id } }
+          );
+        } else {
+          await Models.chatconstant.create({
+            senderId: chatData.senderId,
+            receiverId: receiverId,
+            groupId: chatData.groupId,
+            lastMessageId: insertChat.id,
+          });
+        }
+
+        const checkMessages = await Models.message.findAll({
+          include: [
+            {
+              attributes: ["name"],
+              model: Models.users,
+              as: "senderDetail",
+            },
+            {
+              attributes: ["groupName"],
+              model: Models.group,
+              as: "groupDetail",
+            },
+          ],
+          where: {
+            groupId: chatData.groupId
+          },
+        });
+
+        // Get the group users
+        let groupUsers = await Models.groupUsers.findAll({
+          where: { groupId: chatData.groupId },
+          raw: true,
+        });
+
+        // Emit the message to all group users
+        for (const groupUser of groupUsers) {
+          let socketId = await Models.usersocket.findOne({
+            where: { userId: groupUser.userId },
+            raw: true,
+          });
+
+          if (socketId) {
+            io.to(socketId.socketId).emit("groupSendMessage", checkMessages);
+          }
+        }
+        socket.emit("groupSendMessage", checkMessages);
+      } catch (error) {
+        throw error;
+      }
+    });
+
+
+
+
 
 
 

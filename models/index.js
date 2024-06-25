@@ -37,7 +37,7 @@ Object.keys(db).forEach(modelName => {
   }
 });
 sequelize
-  .authenticate() 
+  .authenticate()
   .then(() => {
     sequelize.sync({ alter: false  });
     console.log("Connected Successfully");
