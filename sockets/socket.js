@@ -39,7 +39,6 @@ module.exports = function (io) {
     console.log(socket.id, "A user connected");
     let socketId = socket.id;
 
-    // *****************************connect user socket*************************************
     socket.on("connectUser", async (data) => {
       try {
         let findData = await Models.usersocket.findOne({
@@ -62,7 +61,6 @@ module.exports = function (io) {
         throw error
       }
     })
-    // *************************send message socket********************************************
     socket.on("sendMessage", async (chatData) => {
       try {
         let checkUserMessages = await getChatConstantId(
@@ -92,7 +90,6 @@ module.exports = function (io) {
       }
 
     })
-    // ******************************get message socket ***********************************
     socket.on("getMessages", async (chatData) => {
       try {
         const checkMessages = await Models.message.findAll({
@@ -109,14 +106,21 @@ module.exports = function (io) {
             },
           ],
           where: {
-            deletedBy: {
-              [Op.ne]: chatData.senderId,
-            },
-            [Op.or]: [
-              { senderId: chatData.senderId, receiverId: chatData.receiverId },
-              { senderId: chatData.receiverId, receiverId: chatData.senderId },
+            [Op.and]: [
+              {
+                deletedBy: {
+                  [Op.ne]: chatData.senderId,
+                },
+                groupId: null,
+              },
+              {
+                [Op.or]: [
+                  { senderId: chatData.senderId, receiverId: chatData.receiverId },
+                  { senderId: chatData.receiverId, receiverId: chatData.senderId },
+                ],
+              },
             ],
-          },
+          }
         });
 
         console.log(checkMessages, "Messages retrieved successfully");
@@ -126,7 +130,6 @@ module.exports = function (io) {
         socket.emit("error", { message: "Failed to retrieve messages", error: error.message });
       }
     });
-    // ************************************get message list socket *************************************
     socket.on("getMessageList", async (chatList) => {
       try {
         let data = await Models.chatconstant.findAll({
@@ -153,7 +156,6 @@ module.exports = function (io) {
         throw error;
       }
     });
-    // ****************************** delete message socket *********************************************
     socket.on("deleteMessage", async (data) => {
       try {
         let getMessageData = await Models.message.findOne({
@@ -164,7 +166,6 @@ module.exports = function (io) {
           throw new Error("Message not found");
         }
         await Models.message.destroy({ where: { id: data.id } });
-
         let getSocketKey = await Models.usersocket.findOne({
           where: {
             userId: getMessageData.receiverId
@@ -183,7 +184,6 @@ module.exports = function (io) {
         throw error;
       }
     });
-    // ********************************** clear chat socket ************************************************
     socket.on("clearChat", async (data) => {
       try {
         const { senderId, receiverId } = data;
@@ -213,7 +213,6 @@ module.exports = function (io) {
         socket.emit("clearChat", { error_message: "Error clearing chat", error: error.message });
       }
     });
-    // **********************************read status update socket **************************************************
     socket.on("readStatusUpdate", async (chatData) => {
       try {
         let checkMessage = await Models.chatconstant.findOne({
@@ -249,7 +248,6 @@ module.exports = function (io) {
         throw error;
       }
     });
-    // ************************************mark as unread socket*********************************************
     socket.on("markAsUnread", async (messageData) => {
       try {
         let unreadData = await Models.message.update({
@@ -407,6 +405,48 @@ module.exports = function (io) {
         throw error;
       }
     });
+    socket.on("getGroupMessages", async (data) => {
+      try {
+        let messageData = await Models.message.findAll({
+          include: [
+            {
+              attributes: ["name"],
+              model: Models.users,
+              as: "senderDetail",
+            },
+            {
+              attributes: ["name"],
+              model: Models.users,
+              as: "receiverDetail",
+            },
+            {
+              attributes: ["groupName"],
+              model: Models.group,
+              as: "groupDetail",
+            },
+          ],
+          where: {
+            groupId: data.groupId
+          }
+        })
+
+        socket.emit("getGroupMessages", messageData)
+      } catch (error) {
+        console.error("Error retrieving messages:", error);
+        socket.emit("error", { message: "Failed to retrieve messages", error: error.message });
+      }
+    })
+    socket.on("groupDeleteMessage", async (data) => {
+      let messageData = await Models.message.destroy({
+        where: {
+          groupId: data.groupId,
+          id: data.id
+        }
+      })
+      let updateData = await Models.chatconstant.update({
+        lastMessageId
+      })
+    })
 
 
 
